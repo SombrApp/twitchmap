@@ -1,0 +1,20 @@
+{
+  "name": "twitchmap-collector",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "description": "Collects Twitch shared-chatter data and builds the twitchmap graph JSON.",
+  "scripts": {
+    "channels": "node src/twitch.js",
+    "collect": "node src/collector.js",
+    "snapshot": "node src/snapshot.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "ioredis": "^5.4.1",
+    "dotenv": "^16.4.5",
+    "graphology": "^0.25.4",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-layout-forceatlas2": "^0.10.1"
+  }
+}
