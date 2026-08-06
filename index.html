@@ -230,7 +230,7 @@ let GRAPH=GRAPH_SEED;let COMMUNITIES=GRAPH.communities;
 function seed(s){return function(){s|=0;s=(s+0x6d2b79f5)|0;let t=Math.imul(s^(s>>>15),1|s);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
 
 let AMIN=1,AMAX=1000;
-function rSize(a){const d0=AMIN,d1=Math.max(AMAX,AMIN+1),r0=2.5,r1=44;
+function rSize(a){const d0=AMIN,d1=Math.max(AMAX,AMIN+1),r0=2.5,r1=26;
   const c=Math.max(d0,Math.min(d1,a));
   const t=(Math.sqrt(c)-Math.sqrt(d0))/(Math.sqrt(d1)-Math.sqrt(d0));return r0+Math.pow(t,1.25)*(r1-r0);}
 function sNorm(a){const c=Math.max(300,Math.min(300000,a));return (Math.sqrt(c)-Math.sqrt(300))/(Math.sqrt(300000)-Math.sqrt(300));}
@@ -276,7 +276,7 @@ function draw(){
   ctx.fillStyle="#08080b";ctx.fillRect(0,0,size.w,size.h);
   if(stars){for(const s of stars){ctx.globalAlpha=.12+.32*(0.5+0.5*Math.sin(T*.8+s.p));ctx.fillStyle="#cdd6ff";ctx.beginPath();ctx.arc(s.x*size.w,s.y*size.h,s.r,0,6.28);ctx.fill();}ctx.globalAlpha=1;}
   ctx.translate(t.x,t.y);ctx.scale(t.k,t.k);
-  const amb=.11+(t.k>2?.05:0);
+  const amb=.075+(t.k>2?.04:0);
   for(const l of links){
     const a=l.source,b=l.target,inv=hasSel&&(a===selected||b===selected);
     const onp=pathE&&pathE.has(a.id+"|"+b.id);
@@ -293,9 +293,9 @@ function draw(){
   for(const n of nodes){
     const rr=rSize(n.audience),col=COMMUNITIES[n.community].color,onp=pathN&&pathN.has(n.id);
     const dim=pathN?!onp:(hasSel&&n!==selected&&!neighbors.has(n.id));
-    if(rr>18&&!dim){const g=ctx.createRadialGradient(n.dx,n.dy,rr*.5,n.dx,n.dy,rr*2.6);
-      g.addColorStop(0,col+"55");g.addColorStop(1,col+"00");
-      ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.dx,n.dy,rr*2.6,0,6.2832);ctx.fill();}
+    if(rr>20&&!dim){const g=ctx.createRadialGradient(n.dx,n.dy,rr*.5,n.dx,n.dy,rr*1.6);
+      g.addColorStop(0,col+"38");g.addColorStop(1,col+"00");
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.dx,n.dy,rr*1.6,0,6.2832);ctx.fill();}
     ctx.beginPath();ctx.arc(n.dx,n.dy,rr,0,6.2832);
     ctx.fillStyle=col;ctx.globalAlpha=dim?.1:1;ctx.fill();
     if(n===selected){ctx.globalAlpha=1;ctx.lineWidth=2.4/t.k;ctx.strokeStyle="#fff";ctx.stroke();}
