@@ -126,10 +126,17 @@
   .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);
     font-family:var(--mono);font-size:12px;text-align:center;padding:20px;z-index:2}
 
-  .ad{margin:20px auto 0;max-width:728px;height:96px;border:1px dashed var(--line);border-radius:14px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--faint)}
-  .ad .lab{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:1px}
-  .ad .hint{font-size:12px;color:var(--faint)}
+  .statusbar{margin:14px auto 0;display:flex;align-items:center;justify-content:center;gap:8px;
+    font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.3px}
+  .dot-live{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .timeline{margin:16px auto 0;max-width:520px;display:none;align-items:center;gap:12px}
+  .tllabel{font-family:var(--mono);font-size:11px;color:var(--cyan);min-width:70px;text-align:right}
+  .timeline input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:linear-gradient(90deg,var(--purple),var(--cyan));outline:none}
+  .timeline input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:#fff;box-shadow:0 0 10px rgba(169,112,255,.8);cursor:pointer}
+  .timeline input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:0;cursor:pointer}
 
   footer{margin-top:26px;padding-top:18px;border-top:1px solid var(--line2);display:flex;
     justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--faint);font-size:12px}
@@ -204,10 +211,11 @@
     <div class="loading" id="loading">laying out the network&#8230;</div>
   </div>
 
-  <div class="ad">
-    <div class="lab">advertisement</div>
-    <div class="hint">ad slot &#183; 728&#215;90 leaderboard</div>
+  <div class="timeline" id="timeline">
+    <span class="tllabel" id="tllabel">Live</span>
+    <input type="range" id="tlslider" min="0" max="1" value="1" aria-label="Timeline" />
   </div>
+  <div class="statusbar" id="statusbar"></div>
 
   <footer>
     <div>&#169; 2026 twitchmap &#183; an independent project</div>
@@ -233,7 +241,7 @@ function build(){
 }
 
 const canvas=document.getElementById("c"),ctx=canvas.getContext("2d"),stage=document.getElementById("stage");
-let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null;
+let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null,LIVE=false,GENERATED="";
 
 function showErr(m){const l=document.getElementById("loading");l.textContent="Couldn\u2019t start the map: "+m;l.style.display="grid";}
 
@@ -405,12 +413,23 @@ function setup(){
   const h=decodeURIComponent((location.hash||"").replace(/^#/,""));
   if(h){const m=nodes.find(n=>n.name.toLowerCase()===h.toLowerCase());if(m)setTimeout(()=>{select(m);zoomTo(m);},250);}
 }
+function rel(iso){if(!iso)return"just now";const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);if(s<3600)return Math.round(s/60)+"m ago";if(s<86400)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";}
+function updateStatus(){const n=nodes?nodes.length:0,sb=document.getElementById("statusbar"),fn=document.querySelector(".fnote");
+  if(LIVE){sb.innerHTML='<span class="dot-live"></span> live \u00b7 '+n+' streamers mapped \u00b7 updated '+rel(GENERATED);if(fn)fn.textContent="not affiliated with Twitch";}
+  else{sb.innerHTML='sample map \u00b7 '+n+' streamers \u00b7 live data coming soon';}}
+function rebuildLegend(){const leg=document.getElementById("legend");if(!leg)return;leg.innerHTML="";COMMUNITIES.slice(0,12).forEach(c=>{const el=document.createElement("div");el.className="leg";el.innerHTML='<span class="dot" style="background:'+c.color+'"></span><span>'+c.name+'</span>';leg.appendChild(el);});}
+function applyGraph(d){GRAPH=d;COMMUNITIES=d.communities;const g=build();nodes=g.nodes;links=g.links;nodeById=new Map(nodes.map(n=>[n.id,n]));computeAux();selected=null;neighbors=new Set();pathE=null;pathN=null;const card=document.getElementById("card");if(card)card.classList.remove("show");rebuildLegend();if(zoom){d3.select(canvas).transition().duration(400).call(zoom.transform,fit());}}
+async function loadTimeline(){try{const r=await fetch("snapshots/index.json",{cache:"no-store"});if(!r.ok)return;const weeks=await r.json();if(!Array.isArray(weeks)||weeks.length<2)return;const wrap=document.getElementById("timeline"),slider=document.getElementById("tlslider"),label=document.getElementById("tllabel");const stops=[...weeks,"Live"];slider.max=stops.length-1;slider.value=stops.length-1;label.textContent="Live";wrap.style.display="flex";slider.oninput=async()=>{const w=stops[+slider.value];label.textContent=w;const url=(w==="Live")?"data.json":("snapshots/data-"+w+".json");try{const rr=await fetch(url,{cache:"no-store"});if(rr.ok){const d=await rr.json();if(d&&d.nodes)applyGraph(d);}}catch(_){}};}catch(_){}}
 </script>
 <script>
 (function load(srcs,i){
   if(i>=srcs.length){showErr("graph engine unavailable");return;}
   const s=document.createElement("script");s.src=srcs[i];
-  s.onload=function(){(async()=>{try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&d.nodes&&d.nodes.length){GRAPH=d;COMMUNITIES=d.communities;}}}catch(_){}init();})();};
+  s.onload=function(){(async()=>{
+    try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&d.nodes&&d.nodes.length){GRAPH=d;COMMUNITIES=d.communities;LIVE=true;GENERATED=d.generated||"";}}}catch(_){}
+    init();updateStatus();loadTimeline();
+    setInterval(async()=>{try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d.generated&&d.generated!==GENERATED&&!selected)location.reload();}}catch(_){}},600000);
+  })();};
   s.onerror=function(){load(srcs,i+1);};
   document.head.appendChild(s);
 })([
