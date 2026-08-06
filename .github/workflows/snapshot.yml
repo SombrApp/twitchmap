@@ -1,0 +1,30 @@
+# Weekly twitchmap snapshot — runs the map build on GitHub's free runners
+# and publishes data.json back to the repo (which redeploys the site).
+name: weekly-snapshot
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"   # Mondays 12:00 UTC
+  workflow_dispatch: {}      # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write            # allows publishing data.json to the repo
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        working-directory: collector
+        run: npm install
+      - name: Build & publish snapshot
+        working-directory: collector
+        run: node src/snapshot.js
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
