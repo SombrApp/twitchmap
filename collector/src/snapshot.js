@@ -6,8 +6,8 @@ import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 
-const MIN_SHARED = Number(process.env.MIN_SHARED) || 3;   // min shared chatters for an edge (raise as data grows)
-const LINKS_CAP  = Number(process.env.LINKS_CAP)  || 12000;
+const MIN_SHARED = Number(process.env.MIN_SHARED) || 6;   // noise floor
+const LINKS_CAP  = Number(process.env.LINKS_CAP)  || 2500;   // render only the strongest N edges — keeps communities readable
 const MAX_NODES  = Number(process.env.MAX_NODES)  || 2500;
 const PALETTE = ["#4ade80","#fb7185","#38bdf8","#f472b6","#fbbf24","#a78bfa","#f97316","#22d3ee",
   "#a3e635","#e879f9","#14b8a6","#60a5fa","#f43f5e","#34d399","#c084fc","#fca5a5","#5eead4","#fdba74","#93c5fd","#f0abfc"];
@@ -64,7 +64,7 @@ async function run() {
   nodes.forEach((n, i) => G.addNode(i, { size: n.size }));
   for (const [a, b, w] of links) if (!G.hasEdge(a, b)) G.addEdge(a, b, { weight: w });
   const comm = louvain(G, { getEdgeWeight: "weight" });
-  const pos = forceAtlas2(G, { iterations: 600, settings: { ...forceAtlas2.inferSettings(G), linLogMode: true, outboundAttractionDistribution: true, gravity: 0.6, scalingRatio: 8, barnesHutOptimize: true } });
+  const pos = forceAtlas2(G, { iterations: 600, settings: { ...forceAtlas2.inferSettings(G), linLogMode: true, outboundAttractionDistribution: true, gravity: 0.8, scalingRatio: 5, barnesHutOptimize: true } });
 
   const byComm = new Map(); nodes.forEach((n, i) => { let a = byComm.get(comm[i]); if (!a) byComm.set(comm[i], (a = [])); a.push(i); });
   const order = [...byComm.entries()].sort((A, B) => B[1].reduce((s, i) => s + nodes[i].size, 0) - A[1].reduce((s, i) => s + nodes[i].size, 0));
