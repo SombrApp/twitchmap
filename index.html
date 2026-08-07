@@ -84,7 +84,9 @@
   .hud{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:8px;align-items:flex-start;pointer-events:none;z-index:3}
   .panel{pointer-events:auto;border-radius:13px;padding:9px 12px;max-width:190px;transition:max-width .2s}
   .panel.open{max-width:250px;padding:12px 14px}
-  .prow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+  .pchev{font-size:12px;color:var(--faint);transition:transform .2s;flex:0 0 auto}
+  .panel.open .pchev{transform:rotate(180deg)}
   .ptitle{font-family:var(--disp);font-weight:500;font-size:13px;letter-spacing:-.2px}
   .psub{font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
   .ib{background:rgba(255,255,255,.08);border:1px solid var(--line);color:#fff;width:25px;height:25px;
@@ -181,11 +183,12 @@
 
     <div class="hud">
       <div class="panel glass" id="panel">
-        <div class="prow">
+        <div class="prow" id="prow">
           <div>
             <div class="ptitle">Explore</div>
             <div class="psub">overlap of chatters</div>
           </div>
+          <span class="pchev">&#8964;</span>
         </div>
         <div class="more">
           <input class="search" id="search" placeholder="Search a streamer" autocomplete="off" />
@@ -419,8 +422,7 @@ function setup(){
   COMMUNITIES.slice(0,12).forEach(c=>{const el=document.createElement("div");el.className="leg";
     el.innerHTML='<span class="dot" style="background:'+c.color+'"></span><span>'+c.name+'</span>';leg.appendChild(el);});
 
-  document.getElementById("toggle").onclick=()=>{const p=document.getElementById("panel");p.classList.toggle("open");
-    document.getElementById("toggle").textContent=p.classList.contains("open")?"\u2013":"i";};
+  document.getElementById("prow").onclick=()=>document.getElementById("panel").classList.toggle("open");
   document.getElementById("cclose").onclick=()=>select(null);
   document.getElementById("cshare").onclick=()=>{if(!selected)return;const url=location.origin+location.pathname+"#"+encodeURIComponent(selected.name);const b=document.getElementById("cshare");if(navigator.share){navigator.share({title:"twitchmap",text:selected.name+" on twitchmap",url}).catch(()=>{});}else if(navigator.clipboard){navigator.clipboard.writeText(url);b.textContent="\u2713";setTimeout(()=>b.innerHTML="&#8599;",1200);}};
   document.getElementById("pathin").addEventListener("input",e=>{
