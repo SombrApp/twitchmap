@@ -189,7 +189,6 @@
         </div>
         <div class="more">
           <input class="search" id="search" placeholder="Search a streamer" autocomplete="off" />
-          <div class="sresults" id="sresults"></div>
           <div class="legend" id="legend"></div>
         </div>
       </div>
@@ -438,13 +437,12 @@ function setup(){
   });
   document.getElementById("zin").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1.5);
   document.getElementById("zout").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1/1.5);
-  const sres=document.getElementById("sresults"),sinp=document.getElementById("search");
-  sinp.addEventListener("input",e=>{
-    const q=e.target.value.trim().toLowerCase();sres.innerHTML="";if(!q)return;
-    const ms=nodes.filter(n=>n.name.toLowerCase().includes(q)).sort((a,b)=>rSize(b.audience)-rSize(a.audience)).slice(0,8);
-    for(const m of ms){const el=document.createElement("div");el.className="sr";el.textContent=m.name;el.onclick=()=>{select(m);zoomTo(m);sres.innerHTML="";sinp.value=m.name;};sres.appendChild(el);}
+  document.getElementById("search").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();if(!q)return;
+    const m=nodes.find(n=>n.name.toLowerCase().includes(q));
+    if(m){select(m);const t=d3.zoomIdentity.translate(size.w/2,size.h/2).scale(3).translate(-m.x,-m.y);
+      d3.select(canvas).transition().duration(600).call(zoom.transform,t);}
   });
-  sinp.addEventListener("keydown",e=>{if(e.key==="Enter"){const f=sres.querySelector(".sr");if(f)f.click();}});
   const ab=document.getElementById("about");
   document.getElementById("toggle").onclick=()=>{ab.style.display="flex";};
   document.getElementById("aboutx").onclick=()=>{ab.style.display="none";};
