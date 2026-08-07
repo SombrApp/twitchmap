@@ -145,6 +145,7 @@
   .sresults{margin-top:6px;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow:auto}
   .sr{padding:7px 10px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer}
   .sr:hover{background:rgba(255,255,255,.08)}
+  .ibinfo{position:absolute;top:14px;right:14px;z-index:25}
   .modal{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);backdrop-filter:blur(4px)}
   .mbox{position:relative;max-width:440px;margin:20px;padding:26px 26px 22px}
   .mbox h3{font-family:var(--disp);margin:0 0 12px;font-size:20px}
@@ -185,7 +186,6 @@
             <div class="ptitle">Explore</div>
             <div class="psub">overlap of chatters</div>
           </div>
-          <button class="ib" id="toggle" aria-label="Toggle info">i</button>
         </div>
         <div class="more">
           <input class="search" id="search" placeholder="Search a streamer" autocomplete="off" />
@@ -195,10 +195,10 @@
       </div>
     </div>
 
+    <button class="ib glass ibinfo" id="toggle" aria-label="About">i</button>
     <div class="zoom" id="zoom">
       <button class="zb glass" id="zin" aria-label="Zoom in">+</button>
       <button class="zb glass" id="zout" aria-label="Zoom out">&#8722;</button>
-      <button class="zb glass" id="zfit" style="font-size:14px" aria-label="Fit">&#10229;&#10230;</button>
     </div>
 
     <div class="card glass" id="card">
@@ -368,6 +368,7 @@ function select(n){
     document.getElementById("cmeta").textContent=COMMUNITIES[n.community].name+" cluster \u00b7 "+fmt(n.audience)+" audience";
     document.getElementById("csub").textContent="Top shared audience \u00b7 "+neighbors.size+" connections";
     document.getElementById("clink").style.color=COMMUNITIES[n.community].color;
+    document.getElementById("clink").onclick=()=>window.open("https://twitch.tv/"+encodeURIComponent(n.name),"_blank","noopener");
     const arr=[...nb.entries()].map(e=>({o:nodeById.get(e[0]),sh:e[1]})).filter(x=>x.o).sort((a,b)=>b.sh-a.sh).slice(0,20);
     const list=document.getElementById("clist");list.innerHTML="";
     arr.forEach((x,i)=>{const row=document.createElement("div");row.className="crow";
@@ -382,10 +383,15 @@ function setup(){
   new ResizeObserver(resize).observe(stage);resize();
   zoom=d3.zoom().scaleExtent([.3,9]).on("zoom",e=>{transform=e.transform;draw();});
   const sel=d3.select(canvas),i0=fit();sel.call(zoom).call(zoom.transform,i0);transform=i0;draw();
+  sel.on("mousedown.zoom",null);   // handle mouse-drag panning ourselves (reliable on desktop)
 
-  let st=null;
-  canvas.addEventListener("pointerdown",e=>{st={x:e.clientX,y:e.clientY,t:Date.now()};});
+  let st=null,drag=null;
+  canvas.addEventListener("pointerdown",e=>{
+    st={x:e.clientX,y:e.clientY,t:Date.now()};
+    if(e.pointerType==="mouse"){drag={x:e.clientX,y:e.clientY};canvas.style.cursor="grabbing";try{canvas.setPointerCapture(e.pointerId);}catch(_){}}
+  });
   canvas.addEventListener("pointerup",e=>{
+    if(drag){drag=null;canvas.style.cursor="grab";try{canvas.releasePointerCapture(e.pointerId);}catch(_){}}
     if(!st)return;const mv=Math.hypot(e.clientX-st.x,e.clientY-st.y),dt=Date.now()-st.t;st=null;
     if(mv>8||dt>350)return;
     const r=canvas.getBoundingClientRect(),t=transform;
@@ -395,6 +401,10 @@ function setup(){
     select(hit);
   });
   canvas.addEventListener("pointermove",e=>{
+    if(drag&&e.pointerType==="mouse"){
+      const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};
+      sel.call(zoom.transform,d3.zoomIdentity.translate(transform.x+dx,transform.y+dy).scale(transform.k));return;
+    }
     if(e.pointerType!=="mouse")return;
     const r=canvas.getBoundingClientRect(),t=transform;
     const wx=(e.clientX-r.left-t.x)/t.k,wy=(e.clientY-r.top-t.y)/t.k;
@@ -428,7 +438,6 @@ function setup(){
   });
   document.getElementById("zin").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1.5);
   document.getElementById("zout").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1/1.5);
-  document.getElementById("zfit").onclick=()=>{select(null);d3.select(canvas).transition().duration(500).call(zoom.transform,fit());};
   const sres=document.getElementById("sresults"),sinp=document.getElementById("search");
   sinp.addEventListener("input",e=>{
     const q=e.target.value.trim().toLowerCase();sres.innerHTML="";if(!q)return;
