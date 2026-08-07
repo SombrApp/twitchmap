@@ -142,6 +142,14 @@
     justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--faint);font-size:12px}
   footer a:hover{color:var(--muted)}
   .fnote{font-family:var(--mono);font-size:10.5px}
+  .sresults{margin-top:6px;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow:auto}
+  .sr{padding:7px 10px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer}
+  .sr:hover{background:rgba(255,255,255,.08)}
+  .modal{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);backdrop-filter:blur(4px)}
+  .mbox{position:relative;max-width:440px;margin:20px;padding:26px 26px 22px}
+  .mbox h3{font-family:var(--disp);margin:0 0 12px;font-size:20px}
+  .mbox p{margin:0 0 12px;font-size:14px;line-height:1.55;color:var(--muted)}
+  .mbox p.muted{color:var(--faint);font-size:12px;margin-bottom:0}
 </style>
 </head>
 <body>
@@ -181,6 +189,7 @@
         </div>
         <div class="more">
           <input class="search" id="search" placeholder="Search a streamer" autocomplete="off" />
+          <div class="sresults" id="sresults"></div>
           <div class="legend" id="legend"></div>
         </div>
       </div>
@@ -208,6 +217,15 @@
       <div class="clink" id="clink">&#8594; open channel on Twitch</div>
     </div>
 
+    <div class="modal" id="about" style="display:none">
+      <div class="mbox glass">
+        <button class="ib" id="aboutx" aria-label="Close" style="position:absolute;top:12px;right:12px">&#10005;</button>
+        <h3>what is this?</h3>
+        <p>twitchmap places every streamer next to the ones they share chat with. tight clusters are real communities &#8212; the closer two streamers sit, the more their audiences overlap.</p>
+        <p>it&#39;s built from live Twitch chat and rebuilds every few hours. bigger dots have more active chatters. tap any streamer to see who they&#39;re most connected to.</p>
+        <p class="muted">not affiliated with Twitch.</p>
+      </div>
+    </div>
     <div class="loading" id="loading">laying out the network&#8230;</div>
   </div>
 
@@ -237,13 +255,13 @@ function sNorm(a){const c=Math.max(300,Math.min(300000,a));return (Math.sqrt(c)-
 
 function build(){
   const A=GRAPH.nodes.map(n=>n.a);AMIN=A.length?Math.min(...A):1;AMAX=A.length?Math.max(...A):1000;
-  const nodes=GRAPH.nodes.map((n,i)=>({id:i,name:n.n,community:n.c,audience:n.a,x:n.x,y:n.y,dx:n.x,dy:n.y,phase:Math.random()*6.283,amp:3+Math.random()*7}));
+  const nodes=GRAPH.nodes.map((n,i)=>({id:i,name:n.n,community:n.c,audience:n.a,x:n.x,y:n.y,dx:n.x,dy:n.y,phase:Math.random()*6.283,amp:3+Math.random()*7,p:n.p||null}));
   const links=GRAPH.links.map(l=>({source:nodes[l[0]],target:nodes[l[1]],w:l[2]}));
   return {nodes,links};
 }
 
 const canvas=document.getElementById("c"),ctx=canvas.getContext("2d"),stage=document.getElementById("stage");
-let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null,LIVE=false,GENERATED="";
+let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null,LIVE=false,GENERATED="",imgCache=new Map();
 
 function showErr(m){const l=document.getElementById("loading");l.textContent="Couldn\u2019t start the map: "+m;l.style.display="grid";}
 
@@ -298,6 +316,7 @@ function draw(){
       ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.dx,n.dy,rr*1.6,0,6.2832);ctx.fill();}
     ctx.beginPath();ctx.arc(n.dx,n.dy,rr,0,6.2832);
     ctx.fillStyle=col;ctx.globalAlpha=dim?.1:1;ctx.fill();
+    if(n.p&&!dim&&rr*t.k>18){let im=imgCache.get(n.p);if(im===undefined){im=new Image();im.onerror=()=>imgCache.set(n.p,null);im.src=n.p;imgCache.set(n.p,im);}if(im&&im.complete&&im.naturalWidth){ctx.save();ctx.globalAlpha=1;ctx.beginPath();ctx.arc(n.dx,n.dy,rr,0,6.2832);ctx.clip();ctx.drawImage(im,n.dx-rr,n.dy-rr,rr*2,rr*2);ctx.restore();}}
     if(n===selected){ctx.globalAlpha=1;ctx.lineWidth=2.4/t.k;ctx.strokeStyle="#fff";ctx.stroke();}
     else if(onp){ctx.globalAlpha=1;ctx.lineWidth=2.4/t.k;ctx.strokeStyle="#ffe08a";ctx.stroke();}
     else if(n===hovered){ctx.globalAlpha=1;ctx.lineWidth=1.6/t.k;ctx.strokeStyle="rgba(255,255,255,.7)";ctx.stroke();}
@@ -410,18 +429,23 @@ function setup(){
   document.getElementById("zin").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1.5);
   document.getElementById("zout").onclick=()=>d3.select(canvas).transition().duration(220).call(zoom.scaleBy,1/1.5);
   document.getElementById("zfit").onclick=()=>{select(null);d3.select(canvas).transition().duration(500).call(zoom.transform,fit());};
-  document.getElementById("search").addEventListener("input",e=>{
-    const q=e.target.value.trim().toLowerCase();if(!q)return;
-    const m=nodes.find(n=>n.name.toLowerCase().includes(q));
-    if(m){select(m);const t=d3.zoomIdentity.translate(size.w/2,size.h/2).scale(3).translate(-m.x,-m.y);
-      d3.select(canvas).transition().duration(600).call(zoom.transform,t);}
+  const sres=document.getElementById("sresults"),sinp=document.getElementById("search");
+  sinp.addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();sres.innerHTML="";if(!q)return;
+    const ms=nodes.filter(n=>n.name.toLowerCase().includes(q)).sort((a,b)=>rSize(b.audience)-rSize(a.audience)).slice(0,8);
+    for(const m of ms){const el=document.createElement("div");el.className="sr";el.textContent=m.name;el.onclick=()=>{select(m);zoomTo(m);sres.innerHTML="";sinp.value=m.name;};sres.appendChild(el);}
   });
+  sinp.addEventListener("keydown",e=>{if(e.key==="Enter"){const f=sres.querySelector(".sr");if(f)f.click();}});
+  const ab=document.getElementById("about");
+  document.getElementById("toggle").onclick=()=>{ab.style.display="flex";};
+  document.getElementById("aboutx").onclick=()=>{ab.style.display="none";};
+  ab.onclick=(e)=>{if(e.target===ab)ab.style.display="none";};
   const h=decodeURIComponent((location.hash||"").replace(/^#/,""));
   if(h){const m=nodes.find(n=>n.name.toLowerCase()===h.toLowerCase());if(m)setTimeout(()=>{select(m);zoomTo(m);},250);}
 }
 function rel(iso){if(!iso)return"just now";const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);if(s<3600)return Math.round(s/60)+"m ago";if(s<86400)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";}
 function updateStatus(){const n=nodes?nodes.length:0,sb=document.getElementById("statusbar"),fn=document.querySelector(".fnote");
-  if(LIVE){sb.innerHTML='<span class="dot-live"></span> live \u00b7 '+n+' streamers mapped \u00b7 updated '+rel(GENERATED);if(fn)fn.textContent="not affiliated with Twitch";}
+  if(LIVE){sb.innerHTML='<span class="dot-live"></span> live \u00b7 '+n+' streamers mapped \u00b7 updated '+rel(GENERATED)+(n<40?' \u00b7 still gathering data':'');if(fn)fn.textContent="not affiliated with Twitch";}
   else{sb.innerHTML='sample map \u00b7 '+n+' streamers \u00b7 live data coming soon';}}
 function rebuildLegend(){const leg=document.getElementById("legend");if(!leg)return;leg.innerHTML="";COMMUNITIES.slice(0,12).forEach(c=>{const el=document.createElement("div");el.className="leg";el.innerHTML='<span class="dot" style="background:'+c.color+'"></span><span>'+c.name+'</span>';leg.appendChild(el);});}
 function applyGraph(d){GRAPH=d;COMMUNITIES=d.communities;const g=build();nodes=g.nodes;links=g.links;nodeById=new Map(nodes.map(n=>[n.id,n]));computeAux();selected=null;neighbors=new Set();pathE=null;pathN=null;const card=document.getElementById("card");if(card)card.classList.remove("show");rebuildLegend();if(zoom){d3.select(canvas).transition().duration(400).call(zoom.transform,fit());}}
