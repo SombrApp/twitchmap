@@ -23,6 +23,25 @@ async function putFile(path, contentStr, msg) {
   console.log("publish", path, "->", p.status, p.ok ? "ok" : await p.text());
 }
 
+let _tok = null, _exp = 0;
+async function appToken() {
+  if (_tok && Date.now() < _exp - 60000) return _tok;
+  const r = await fetch("https://id.twitch.tv/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: process.env.TWITCH_CLIENT_ID, client_secret: process.env.TWITCH_CLIENT_SECRET, grant_type: "client_credentials" }) });
+  if (!r.ok) throw new Error("token " + r.status); const j = await r.json(); _tok = j.access_token; _exp = Date.now() + j.expires_in * 1000; return _tok;
+}
+async function getAvatars(logins) {
+  const map = {}; if (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET) { console.log("(no Twitch creds — skipping avatars)"); return map; }
+  try {
+    const tok = await appToken(); const headers = { "Client-Id": process.env.TWITCH_CLIENT_ID, Authorization: "Bearer " + tok };
+    for (let i = 0; i < logins.length; i += 100) {
+      const url = new URL("https://api.twitch.tv/helix/users"); for (const l of logins.slice(i, i + 100)) url.searchParams.append("login", l);
+      const r = await fetch(url, { headers }); if (!r.ok) continue; const j = await r.json();
+      for (const u of j.data) map[u.login.toLowerCase()] = u.profile_image_url;
+    }
+    console.log("fetched", Object.keys(map).length, "avatars");
+  } catch (e) { console.error("avatars", e.message); }
+  return map;
+}
 async function run() {
   const week = process.env.WEEK || isoWeek();
   const tracked = JSON.parse((await redis.get("tracked:" + week)) || "[]");
@@ -47,16 +66,13 @@ async function run() {
   let links = []; for (const [k, w] of pair) if (w >= MIN_SHARED) links.push([Math.floor(k / MAX_NODES), k % MAX_NODES, w]);
   links.sort((x, y) => y[2] - x[2]); links = links.slice(0, LINKS_CAP);
 
-  // keep only connected streamers (drop isolated dots so it looks like a map, not confetti)
-  const used = new Set(); for (const [a, b] of links) { used.add(a); used.add(b); }
+  // keep connected streamers + ALWAYS the top-N biggest, so recognizable names never vanish
+  const TOP_KEEP = Number(process.env.TOP_KEEP) || 150;
+  const keep = new Set(); for (const [a, b] of links) { keep.add(a); keep.add(b); }
+  for (let i = 0; i < Math.min(TOP_KEEP, nodes.length); i++) keep.add(i);   // nodes are sorted by size desc
   let keptNodes = [], remap = new Map();
-  nodes.forEach((n, i) => { if (used.has(i)) { remap.set(i, keptNodes.length); keptNodes.push(n); } });
-  let keptLinks = links.map(([a, b, w]) => [remap.get(a), remap.get(b), w]);
-  if (keptNodes.length < 30) { // super-early fallback: show the biggest channels regardless
-    keptNodes = nodes.slice(0, Math.min(nodes.length, 150));
-    const id2 = new Map(keptNodes.map((n, i) => [n.login, i]));
-    keptLinks = links.map(([a, b, w]) => [id2.get(nodes[a].login), id2.get(nodes[b].login), w]).filter(([a, b]) => a != null && b != null);
-  }
+  nodes.forEach((n, i) => { if (keep.has(i)) { remap.set(i, keptNodes.length); keptNodes.push(n); } });
+  let keptLinks = links.map(([a, b, w]) => [remap.get(a), remap.get(b), w]).filter(([a, b]) => a != null && b != null);
   nodes = keptNodes; links = keptLinks;
   console.log("mapping", nodes.length, "connected streamers,", links.length, "edges");
 
@@ -71,7 +87,8 @@ async function run() {
   const cmap = new Map(), communities = [];
   order.forEach(([c, m], ci) => { cmap.set(c, ci); const big = m.slice().sort((a, b) => nodes[b].size - nodes[a].size)[0]; communities.push({ name: nodes[big].login, color: PALETTE[ci % PALETTE.length] }); });
 
-  const nodesOut = nodes.map((n, i) => ({ n: n.login, c: cmap.get(comm[i]), a: n.size, x: Math.round(pos[i].x * 10) / 10, y: Math.round(pos[i].y * 10) / 10 }));
+  const avatars = await getAvatars(nodes.map(n => n.login));
+  const nodesOut = nodes.map((n, i) => { const o = { n: n.login, c: cmap.get(comm[i]), a: n.size, x: Math.round(pos[i].x * 10) / 10, y: Math.round(pos[i].y * 10) / 10 }; if (avatars[n.login]) o.p = avatars[n.login]; return o; });
   const graph = { week, generated: new Date().toISOString(), communities, nodes: nodesOut, links };
   const js = JSON.stringify(graph);
   console.log(`built ${nodesOut.length} nodes, ${links.length} edges, ${communities.length} communities`);
