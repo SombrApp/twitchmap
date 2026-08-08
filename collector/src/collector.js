@@ -61,7 +61,9 @@ async function flush() {
     const key = "ch:" + week + ":" + ch;
     for (let i = 0; i < users.length; i += 5000) { pipe.sadd(key, users.slice(i, i + 5000)); cmds++; }
     if (!expired.has(key)) { pipe.expire(key, CHATTER_TTL); expired.add(key); cmds++; }   // TTL once, not every flush
+    const mc = msgs.get(ch) || 0; if (mc) { pipe.hincrby("msg:" + week, ch, mc); msgs.set(ch, 0); cmds++; }
   }
+  if (!expired.has("msg:" + week)) { pipe.expire("msg:" + week, CHATTER_TTL); expired.add("msg:" + week); }
   pending.clear();
   await pipe.exec().catch((e) => console.error("flush", e.message));
   console.log(new Date().toISOString(), "flushed ~" + cmds + " commands");
