@@ -29,7 +29,7 @@
     --disp:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",monospace;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
+  html,body{margin:0;background:radial-gradient(130% 90% at 50% -10%, #120f1c 0%, var(--bg) 55%);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
   body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
     background:radial-gradient(60% 42% at 50% -6%, rgba(138,92,240,.18), transparent 70%),
                radial-gradient(46% 34% at 88% 6%, rgba(62,230,255,.09), transparent 70%)}
@@ -153,6 +153,15 @@
   .mbox h3{font-family:var(--disp);margin:0 0 12px;font-size:20px}
   .mbox p{margin:0 0 12px;font-size:14px;line-height:1.55;color:var(--muted)}
   .mbox p.muted{color:var(--faint);font-size:12px;margin-bottom:0}
+  .stats{margin:16px auto 0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 22px;max-width:760px}
+  .stat{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:58px}
+  .stat b{font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.3px;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .stat span{font-family:var(--mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--faint)}
+  .stat.live b{color:#4ade80;font-size:13px}
+  .donate{margin:24px auto 0;max-width:560px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.55}
+  .donate a{color:var(--purple);font-weight:600;white-space:nowrap}
+  .bbav{width:0;height:0;border-radius:50%;vertical-align:middle;opacity:0;transition:all .18s ease;object-fit:cover}
+  #builtby a:hover .bbav{width:20px;height:20px;margin-left:6px;opacity:1}
 </style>
 </head>
 <body>
@@ -235,11 +244,12 @@
     <span class="tllabel" id="tllabel">Live</span>
     <input type="range" id="tlslider" min="0" max="1" value="1" aria-label="Timeline" />
   </div>
-  <div class="statusbar" id="statusbar"></div>
+  <div class="stats" id="stats"></div>
 
+  <div class="donate" id="donate">twitchmap is independent and runs on donations &#8212; the more support, the more streamers we can map. <a href="https://ko-fi.com/twitchmap" target="_blank" rel="noopener">support &#9829;</a></div>
   <footer>
-    <div>&#169; 2026 twitchmap &#183; an independent project</div>
-    <div class="fnote">seed data: <a href="https://github.com/KiranGershenfeld/VisualizingTwitchCommunities" target="_blank" rel="noopener" style="text-decoration:underline">Visualizing Twitch Communities</a> (MIT), Dec 2022 &#183; not affiliated with Twitch</div>
+    <div>&#169; 2026 twitchmap &#183; <span id="builtby">an independent project</span></div>
+    <div class="fnote">not affiliated with Twitch</div>
   </footer>
 </div>
 
@@ -263,7 +273,7 @@ function build(){
 }
 
 const canvas=document.getElementById("c"),ctx=canvas.getContext("2d"),stage=document.getElementById("stage");
-let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null,LIVE=false,GENERATED="",imgCache=new Map();
+let nodes,links,transform={x:0,y:0,k:1},selected=null,neighbors=new Set(),size={w:0,h:0},dpr=1,zoom,hovered=null,nodeById=null,T=0,centroids={},adj=null,pathE=null,pathN=null,stars=null,LIVE=false,GENERATED="",imgCache=new Map(),META=null;
 
 function showErr(m){const l=document.getElementById("loading");l.textContent="Couldn\u2019t start the map: "+m;l.style.display="grid";}
 
@@ -453,11 +463,23 @@ function setup(){
   if(h){const m=nodes.find(n=>n.name.toLowerCase()===h.toLowerCase());if(m)setTimeout(()=>{select(m);zoomTo(m);},250);}
 }
 function rel(iso){if(!iso)return"just now";const s=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);if(s<3600)return Math.round(s/60)+"m ago";if(s<86400)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";}
+function fmt(v){v=+v||0;return v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(1)+"k":""+v;}
+function renderMeta(){const el=document.getElementById("stats");if(!el)return;const s=(META&&META.stats)||{},n=s.streamers||(nodes?nodes.length:0),c=[];
+  c.push('<div class="stat live"><b><span class="dot-live"></span>live</b><span>updated '+rel(GENERATED)+'</span></div>');
+  c.push('<div class="stat"><b>'+fmt(n)+'</b><span>streamers</span></div>');
+  if(s.communities)c.push('<div class="stat"><b>'+s.communities+'</b><span>communities</span></div>');
+  if(s.biggestCluster)c.push('<div class="stat"><b>'+s.biggestCluster+'</b><span>biggest cluster</span></div>');
+  if(s.chattersTracked)c.push('<div class="stat"><b>'+fmt(s.chattersTracked)+'</b><span>chatters tracked</span></div>');
+  if(s.messages)c.push('<div class="stat"><b>'+fmt(s.messages)+'</b><span>messages</span></div>');
+  if(s.mostActive)c.push('<div class="stat"><b>'+s.mostActive+'</b><span>most active chat</span></div>');
+  el.innerHTML=c.join("");}
+function renderBuiltBy(){const el=document.getElementById("builtby");if(!el)return;const b=META&&META.builtBy;if(b){el.innerHTML='built by <a href="'+b.url+'" target="_blank" rel="noopener" style="color:'+(b.color||"#9146FF")+';font-weight:600">'+b.name+(b.avatar?'<img class="bbav" src="'+b.avatar+'" alt="">':'')+'</a>';}
+  const d=document.querySelector("#donate a"),sup=document.querySelector(".support");if(d&&sup)d.href=sup.href;}
 function updateStatus(){const n=nodes?nodes.length:0,sb=document.getElementById("statusbar"),fn=document.querySelector(".fnote");
   if(LIVE){sb.innerHTML='<span class="dot-live"></span> live \u00b7 '+n+' streamers mapped \u00b7 updated '+rel(GENERATED)+(n<40?' \u00b7 still gathering data':'');if(fn)fn.textContent="not affiliated with Twitch";}
   else{sb.innerHTML='sample map \u00b7 '+n+' streamers \u00b7 live data coming soon';}}
 function rebuildLegend(){const leg=document.getElementById("legend");if(!leg)return;leg.innerHTML="";COMMUNITIES.slice(0,12).forEach(c=>{const el=document.createElement("div");el.className="leg";el.innerHTML='<span class="dot" style="background:'+c.color+'"></span><span>'+c.name+'</span>';leg.appendChild(el);});}
-function applyGraph(d){GRAPH=d;COMMUNITIES=d.communities;const g=build();nodes=g.nodes;links=g.links;nodeById=new Map(nodes.map(n=>[n.id,n]));computeAux();selected=null;neighbors=new Set();pathE=null;pathN=null;const card=document.getElementById("card");if(card)card.classList.remove("show");rebuildLegend();if(zoom){d3.select(canvas).transition().duration(400).call(zoom.transform,fit());}}
+function applyGraph(d){GRAPH=d;COMMUNITIES=d.communities;if(d.meta){META=d.meta;GENERATED=d.generated||"";}const g=build();nodes=g.nodes;links=g.links;nodeById=new Map(nodes.map(n=>[n.id,n]));computeAux();selected=null;neighbors=new Set();pathE=null;pathN=null;const card=document.getElementById("card");if(card)card.classList.remove("show");rebuildLegend();renderMeta();if(zoom){d3.select(canvas).transition().duration(400).call(zoom.transform,fit());}}
 async function loadTimeline(){try{const r=await fetch("snapshots/index.json",{cache:"no-store"});if(!r.ok)return;const weeks=await r.json();if(!Array.isArray(weeks)||weeks.length<2)return;const wrap=document.getElementById("timeline"),slider=document.getElementById("tlslider"),label=document.getElementById("tllabel");const stops=[...weeks,"Live"];slider.max=stops.length-1;slider.value=stops.length-1;label.textContent="Live";wrap.style.display="flex";slider.oninput=async()=>{const w=stops[+slider.value];label.textContent=w;const url=(w==="Live")?"data.json":("snapshots/data-"+w+".json");try{const rr=await fetch(url,{cache:"no-store"});if(rr.ok){const d=await rr.json();if(d&&d.nodes)applyGraph(d);}}catch(_){}};}catch(_){}}
 </script>
 <script>
@@ -465,8 +487,8 @@ async function loadTimeline(){try{const r=await fetch("snapshots/index.json",{ca
   if(i>=srcs.length){showErr("graph engine unavailable");return;}
   const s=document.createElement("script");s.src=srcs[i];
   s.onload=function(){(async()=>{
-    try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&d.nodes&&d.nodes.length){GRAPH=d;COMMUNITIES=d.communities;LIVE=true;GENERATED=d.generated||"";}}}catch(_){}
-    init();updateStatus();loadTimeline();
+    try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&d.nodes&&d.nodes.length){GRAPH=d;COMMUNITIES=d.communities;LIVE=true;GENERATED=d.generated||"";META=d.meta||null;}}}catch(_){}
+    init();renderMeta();renderBuiltBy();loadTimeline();
     setInterval(async()=>{try{const r=await fetch("data.json",{cache:"no-store"});if(r.ok){const d=await r.json();if(d.generated&&d.generated!==GENERATED&&!selected)location.reload();}}catch(_){}},600000);
   })();};
   s.onerror=function(){load(srcs,i+1);};
